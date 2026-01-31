@@ -7,6 +7,10 @@
 #include <arpa/inet.h>
 #include <chrono>
 #include <map>
+#include <filesystem>
+#include <vector>
+#include <fstream>
+#include <cstring>
 
 struct HTTPRequest{
     std::string method;
@@ -31,37 +35,6 @@ HTTPRequest parseRequestLine(const std::string& request) {
     stream >> req.method >> req.path >> req.version;
     
     return req;
-}
-
-
-void handleDownload(int client_socket, std::string path){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDownload";
-    send(client_socket, response.c_str(), response.length(), 0);
-}
-
-void handleList(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList";
-    send(client_socket, response.c_str(), response.length(), 0);
-}
-
-void handleUpload(int client_socket, std::string request){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nUpload";
-    send(client_socket, response.c_str(), response.length(), 0);
-}
-
-void handleDelete(int client_socket, std::string path){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDelete";
-    send(client_socket, response.c_str(), response.length(), 0);
-}
-
-void handleHome(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHome";
-    send(client_socket, response.c_str(), response.length(), 0);
-}
-
-void send404(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n404";
-    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 // ============================================
@@ -139,6 +112,104 @@ std::string extractAndValidateFilename(const std::string& path) {
     
     return filename;
 }
+
+void handleDownload(int client_socket, std::string path){
+    std::string filename = extractAndValidateFilename(path);
+    std::string full_path = "files/" + filename;
+
+    std::cout << "Client is trying to download " << filename;
+
+    if (!std::filesystem::exists(full_path)){
+        std::string response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\nFile not found";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    std::ifstream file(full_path, std::ios::binary);
+    
+    if (!file) {
+        std::cerr << "Failed to open file!" << std::endl;
+        std::string response = "HTTP/1.1 404 Open Error\r\nContent-Type: text/plain\r\n\r\nCannot open file";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+    
+    // Get file size
+    file.seekg(0, std::ios::end);
+    std::size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    
+    // Read all bytes into vector
+    std::vector<unsigned char> file_data(file_size);
+    file.read(reinterpret_cast<char*>(file_data.data()), file_size);
+    
+    std::string response_headers = 
+        "HTTP/1.1 200 OK\r\n" 
+        "Content-Type: application/octet-stream\r\n" 
+        "Content-Disposition: attachment; filename=\"" + filename + "\"\r\n" +
+        "Content-Length: " + std::to_string(file_size) + "\r\n" +
+        "\r\n";
+
+        // Send headers first
+    ssize_t header_bytes_sent = send(
+        client_socket,                    // Socket to send to
+        response_headers.c_str(),         // Pointer to data
+        response_headers.length(),        // Number of bytes to send
+        0                                 // Flags (0 = default behavior)
+    );
+
+    if (header_bytes_sent == -1) {
+        std::cerr << "Failed to send headers: " << strerror(errno) << std::endl;
+        close(client_socket);
+        return;
+    }
+
+    // Send file data
+    ssize_t data_bytes_sent = send(
+        client_socket,                    // Socket to send to
+        file_data.data(),                 // Pointer to data
+        file_data.size(),                 // Number of bytes to send
+        0                                 // Flags
+    );
+
+    if (data_bytes_sent == -1) {
+        std::cerr << "Failed to send file data: " << strerror(errno) << std::endl;
+        close(client_socket);
+        return;
+    }
+
+    file.close();
+
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDownload";
+    send(client_socket, response.c_str(), response.length(), 0);
+    return;
+}
+
+void handleList(int client_socket){
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList";
+    send(client_socket, response.c_str(), response.length(), 0);
+}
+
+void handleUpload(int client_socket, std::string request){
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nUpload";
+    send(client_socket, response.c_str(), response.length(), 0);
+}
+
+void handleDelete(int client_socket, std::string path){
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDelete";
+    send(client_socket, response.c_str(), response.length(), 0);
+}
+
+void handleHome(int client_socket){
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHome";
+    send(client_socket, response.c_str(), response.length(), 0);
+}
+
+void send404(int client_socket){
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n404";
+    send(client_socket, response.c_str(), response.length(), 0);
+}
+
 
 // ============================================
 // SECURITY: Rate limiting (simple version)
