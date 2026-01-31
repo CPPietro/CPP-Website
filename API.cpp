@@ -11,12 +11,20 @@
 #include <vector>
 #include <fstream>
 #include <cstring>
+#include <algorithm>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
 
 struct HTTPRequest{
     std::string method;
     std::string path;
     std::string version;
 };
+
+std::vector<std::string> allowed_extensions = {
+        ".txt", ".pdf", ".jpg", ".jpeg", ".png", ".gif", 
+        ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"
+    };
 
 HTTPRequest parseRequestLine(const std::string& request) {
     HTTPRequest req;
@@ -35,6 +43,36 @@ HTTPRequest parseRequestLine(const std::string& request) {
     stream >> req.method >> req.path >> req.version;
     
     return req;
+}
+
+std::string to_lowercase(std::string target){
+    std::string new_string;
+    for (char c : target){
+        tolower(c);
+        new_string = new_string + c;
+    }
+    return new_string;
+}
+
+bool check_disk_space(const std::string& path, size_t required_space) {
+    struct statvfs stat;
+    
+    // Check the files directory instead of the full path
+    if (statvfs("files/", &stat) != 0) {
+        return false;
+    }
+    
+    unsigned long long available = stat.f_bavail * stat.f_frsize;
+    
+    return available >= required_space;
+}
+
+std::string get_file_extension(const std::string& filename) {
+    size_t dot_pos = filename.find_last_of('.');
+    if (dot_pos == std::string::npos || dot_pos == filename.length() - 1) {
+        return "";  // No extension
+    }
+    return to_lowercase(filename.substr(dot_pos));
 }
 
 // ============================================
@@ -90,6 +128,27 @@ bool isValidFilename(const std::string& filename) {
         return false;
     }
     
+    std::string extension = get_file_extension(filename);
+    
+    if (extension.empty()) {
+        std::cerr << "Security: Must have extension\n";
+        return false;
+    }
+    
+    // Check if extension is in allowed list
+    bool extension_allowed = false;
+    for (const auto& allowed_ext : allowed_extensions) {
+        if (extension == to_lowercase(allowed_ext)) {
+            extension_allowed = true;
+            break;
+        }
+    }
+    
+    if (!extension_allowed) {
+        std::cerr << "Security: Extension is not allowed\n";
+        return false;
+    }
+
     return true;
 }
 
@@ -178,6 +237,8 @@ void handleDownload(int client_socket, std::string path){
         return;
     }
 
+    std::cout << "Sent " << filename;
+
     file.close();
 
     std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDownload";
@@ -191,8 +252,103 @@ void handleList(int client_socket){
 }
 
 void handleUpload(int client_socket, std::string request){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nUpload";
+    std::string boundary;
+    size_t boundary_pos = request.find("boundary=");
+
+    if (boundary_pos == std::string::npos){
+        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo boundary found";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    size_t boundary_start = boundary_pos + 9;
+    size_t boundary_end = request.find("\r\n", boundary_start);
+
+    size_t semicolon_pos = request.find(";", boundary_start);
+    if (semicolon_pos != std::string::npos && semicolon_pos < boundary_end){
+        boundary_end = semicolon_pos;
+    }
+
+    boundary = request.substr(boundary_start, boundary_end - boundary_start);
+
+    boundary = "--" + boundary;
+
+    std::string filename;
+    size_t filename_pos = request.find("filename=\"");
+
+    if (filename_pos == std::string::npos){
+        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo filename provided";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    size_t filename_start = filename_pos + 10;
+    size_t filename_end = request.find("\"", filename_start);
+    
+    if (filename_end == std::string::npos){
+        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nInvalid filename format";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    filename = request.substr(filename_start, filename_end - filename_start);
+
+    if (filename.empty()){
+        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo filename provided";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    size_t header_end = request.find("\r\n\r\n", filename_pos);
+
+    if(header_end ==std::string::npos){
+        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMalformed multipart data";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    size_t file_data_start = header_end + 4;
+
+    std::string boundary_marker = "\r\n" + boundary;
+    size_t file_data_end = request.find(boundary_marker, file_data_start);
+
+    if (file_data_end == std::string::npos){
+
+        file_data_end = request.find(boundary, file_data_start);
+
+        if (file_data_end == std::string::npos){
+            std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMalformed multipart data";
+            send(client_socket, response.c_str(), response.length(), 0);
+            return;
+        }
+    }
+
+    std::string file_data = request.substr(file_data_start, file_data_end - file_data_start);
+
+    std::string full_path = "files/" + filename;
+
+    if (!check_disk_space(full_path, file_data.length())){
+        std::string response = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\n\r\nNot enough storage space";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    std::ofstream outfile(full_path, std::ios::binary);
+
+    if (!outfile.is_open()){
+        std::string response = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\n\r\nFailed to save file";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+
+    outfile.write(file_data.c_str(), file_data.length());
+    outfile.close();
+
+    std::cout << "Uploaded file " << filename << "(" << file_data.length() << " bytes)\n";
+
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nFile upload successfull";
     send(client_socket, response.c_str(), response.length(), 0);
+    return;
 }
 
 void handleDelete(int client_socket, std::string path){
