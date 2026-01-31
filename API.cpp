@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <thread>
+#include <atomic>
 
 struct HTTPRequest{
     std::string method;
@@ -25,6 +27,16 @@ std::vector<std::string> allowed_extensions = {
         ".txt", ".pdf", ".jpg", ".jpeg", ".png", ".gif", 
         ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"
     };
+
+std::string readHtmlFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        return "<html><body><h1>Error: Could not load page</h1></body></html>";
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
 
 HTTPRequest parseRequestLine(const std::string& request) {
     HTTPRequest req;
@@ -247,7 +259,12 @@ void handleDownload(int client_socket, std::string path){
 }
 
 void handleList(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList";
+    std::string response = 
+        "HTTP/1.1 200 OK\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "List";
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
@@ -256,7 +273,12 @@ void handleUpload(int client_socket, std::string request){
     size_t boundary_pos = request.find("boundary=");
 
     if (boundary_pos == std::string::npos){
-        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo boundary found";
+        std::string response = 
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "No boundary found";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -277,7 +299,12 @@ void handleUpload(int client_socket, std::string request){
     size_t filename_pos = request.find("filename=\"");
 
     if (filename_pos == std::string::npos){
-        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo filename provided";
+        std::string response = 
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
+            "No filename provided";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -286,7 +313,12 @@ void handleUpload(int client_socket, std::string request){
     size_t filename_end = request.find("\"", filename_start);
     
     if (filename_end == std::string::npos){
-        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nInvalid filename format";
+        std::string response = 
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Invalid filename format";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -294,7 +326,12 @@ void handleUpload(int client_socket, std::string request){
     filename = request.substr(filename_start, filename_end - filename_start);
 
     if (filename.empty()){
-        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nNo filename provided";
+        std::string response = 
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "No filename provided";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -302,7 +339,12 @@ void handleUpload(int client_socket, std::string request){
     size_t header_end = request.find("\r\n\r\n", filename_pos);
 
     if(header_end ==std::string::npos){
-        std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMalformed multipart data";
+        std::string response = 
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Malformed multipart data";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -317,7 +359,12 @@ void handleUpload(int client_socket, std::string request){
         file_data_end = request.find(boundary, file_data_start);
 
         if (file_data_end == std::string::npos){
-            std::string response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\nMalformed multipart data";
+            std::string response = 
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Content-Type: text/plain\r\n"
+            "\r\n"
+            "Malformed multipart data";
             send(client_socket, response.c_str(), response.length(), 0);
             return;
         }
@@ -328,7 +375,12 @@ void handleUpload(int client_socket, std::string request){
     std::string full_path = "files/" + filename;
 
     if (!check_disk_space(full_path, file_data.length())){
-        std::string response = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\n\r\nNot enough storage space";
+        std::string response = 
+        "HTTP/1.1 500 Internal Server Error\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Not enough storage space";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -336,7 +388,12 @@ void handleUpload(int client_socket, std::string request){
     std::ofstream outfile(full_path, std::ios::binary);
 
     if (!outfile.is_open()){
-        std::string response = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain\r\n\r\nFailed to save file";
+        std::string response = 
+        "HTTP/1.1 500 Internal Server Error\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Failed to save file";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
@@ -346,26 +403,120 @@ void handleUpload(int client_socket, std::string request){
 
     std::cout << "Uploaded file " << filename << "(" << file_data.length() << " bytes)\n";
 
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nFile upload successfull";
+    std::string response = 
+    "HTTP/1.1 200 OK\r\n"
+    "Access-Control-Allow-Origin: *\r\n"
+    "Content-Type: text/plain\r\n"
+    "\r\n"
+    "File upload successful";
     send(client_socket, response.c_str(), response.length(), 0);
     return;
 }
 
 void handleDelete(int client_socket, std::string path){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDelete";
+    std::string response = 
+        "HTTP/1.1 200 OK\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Delete";
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleHome(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHome";
+    std::string html_content = readHtmlFile("html/home.html");
+    
+    std::string response = 
+        "HTTP/1.1 200 OK\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/html\r\n"
+        "Content-Length: " + std::to_string(html_content.length()) + "\r\n"
+        "\r\n" + html_content;
+    
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void send404(int client_socket){
-    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n404";
+    std::string response = 
+        "HTTP/1.1 404 Not Found\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "404";
     send(client_socket, response.c_str(), response.length(), 0);
 }
-
+void handleStaticFile(int client_socket, const std::string& path) {
+    // Remove leading slash
+    std::string file_path = path.substr(1); // removes the leading "/"
+    
+    // Security check: prevent directory traversal
+    if (file_path.find("..") != std::string::npos) {
+        std::cerr << "Security: Directory traversal attempt in static file\n";
+        std::string response = "HTTP/1.1 403 Forbidden\r\n\r\nForbidden";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+    
+    // Check if file exists
+    if (!std::filesystem::exists(file_path)) {
+        std::cerr << "Static file not found: " << file_path << "\n";
+        std::string response = "HTTP/1.1 404 Not Found\r\n\r\nFile not found";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+    
+    // Read the file
+    std::ifstream file(file_path, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open static file: " << file_path << "\n";
+        std::string response = "HTTP/1.1 500 Internal Server Error\r\n\r\nCannot open file";
+        send(client_socket, response.c_str(), response.length(), 0);
+        return;
+    }
+    
+    // Get file size
+    file.seekg(0, std::ios::end);
+    std::size_t file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    
+    // Read file content
+    std::vector<char> file_data(file_size);
+    file.read(file_data.data(), file_size);
+    file.close();
+    
+    // Determine content type based on file extension
+    std::string content_type = "text/plain";
+    std::string extension = get_file_extension(file_path);
+    
+    if (extension == ".css") {
+        content_type = "text/css";
+    } else if (extension == ".js") {
+        content_type = "application/javascript";
+    } else if (extension == ".html") {
+        content_type = "text/html";
+    } else if (extension == ".jpg" || extension == ".jpeg") {
+        content_type = "image/jpeg";
+    } else if (extension == ".png") {
+        content_type = "image/png";
+    } else if (extension == ".gif") {
+        content_type = "image/gif";
+    }
+    
+    std::string response_headers = 
+        "HTTP/1.1 200 OK\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Type: " + content_type + "\r\n"
+        "Content-Length: " + std::to_string(file_size) + "\r\n"
+        "\r\n";
+    
+    // Send headers
+    send(client_socket, response_headers.c_str(), response_headers.length(), 0);
+    
+    // Send file data
+    send(client_socket, file_data.data(), file_data.size(), 0);
+    
+    std::cout << "Served static file: " << file_path << "\n";
+}
 
 // ============================================
 // SECURITY: Rate limiting (simple version)
@@ -531,6 +682,8 @@ void handleClient(int client_socket, sockaddr_in client_address) {
             return;
         }
         handleDelete(client_socket, req.path);
+    }else if (req.method == "GET" && req.path.find("/html/static/") == 0) {
+        handleStaticFile(client_socket, req.path);
     }
     else if (req.method == "GET" && req.path == "/") {
         handleHome(client_socket);
@@ -541,37 +694,93 @@ void handleClient(int client_socket, sockaddr_in client_address) {
 }
 
 
-int main() {
+// Global flag for server control
+std::atomic<bool> server_running(true);
+
+// Extract server logic into a function
+void runServer() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if (server_fd == -1) {
+        std::cerr << "Failed to create socket\n";
+        return;
+    }
+    
+    // Allow port reuse
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     
     sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(8080);
     
-    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
-    listen(server_fd, 3);
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        std::cerr << "Bind failed\n";
+        close(server_fd);
+        return;
+    }
     
-    std::cout << "Server listening on port 8080\n";
+    if (listen(server_fd, 3) < 0) {
+        std::cerr << "Listen failed\n";
+        close(server_fd);
+        return;
+    }
     
-    while (true) {
+    
+    while (server_running) {
         sockaddr_in client_address;
         socklen_t client_len = sizeof(client_address);
-
-        // PASS ADDRESSES of these structures (not nullptr!)
-        int client_socket = accept(server_fd, (struct sockaddr*)&client_address,  &client_len);                       
         
-        // Now we can access client information
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &client_address.sin_addr, client_ip, INET_ADDRSTRLEN);
-        int client_port = ntohs(client_address.sin_port);
+        // Set timeout so we can check server_running periodically
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+        setsockopt(server_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        
+        int client_socket = accept(server_fd, (struct sockaddr*)&client_address, &client_len);
+        
+        if (client_socket < 0) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                // Timeout, check if we should continue
+                continue;
+            }
+            std::cerr << "Accept failed\n";
+            continue;
+        }
         
         // Handle the client
         handleClient(client_socket, client_address);
-
+        
         // Close the connection
         close(client_socket);
     }
+    
+    close(server_fd);
+    std::cout << "Server stopped\n";
+}
+
+int main() {
+    // Create files directory if it doesn't exist
+    std::filesystem::create_directories("files");
+    
+    // Start server in a separate thread
+    std::thread serverThread(runServer);
+    
+    std::cout << "Server started in background thread\n";
+    std::cout << "Press Enter to stop the server...\n";
+    
+    // Wait for user input
+    std::cin.get();
+    
+    // Signal server to stop
+    server_running = false;
+    
+    // Wait for server thread to finish
+    std::cout << "Stopping server...\n";
+    serverThread.join();
+    
+    std::cout << "Server stopped successfully\n";
     
     return 0;
 }

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Raspberry Pi File Server</title>
+        <link rel="stylesheet" href="/html/static/css/home_styesheet.css">
+    </head>
+    <body>
+        <div class="title">
+            <h1>Welcome to the Raspberry Pi file server</h1>
+            <h2>What would you like to do?</h2>
+        </div>
+        <div class="buttons">
+            <button class="download_button" role="button" onclick="showTextBox('download')">Download</button>
+            <button class="upload_button" role="button" onclick="showTextBox('upload')">Upload</button>
+        </div>
+        <div id="textBoxContainer" style="display: none;">
+            <p id="textBoxLabel">Enter information:</p>
+            <input type="text" id="textBoxInput" placeholder="Type here...">
+            <!--<input type="file" id="fileInput">-->
+            <button onclick="sendToCpp()">Send</button>
+        </div>
+        <script>function showTextBox(buttonType) {
+            const container = document.getElementById('textBoxContainer');
+                const label = document.getElementById('textBoxLabel');
+                
+                // Show the container
+                container.style.display = 'block';
+                
+                // Change the label text based on which button was pressed
+                if (buttonType === 'upload') {
+                    label.textContent = 'Enter file path to upload:';
+                } else if (buttonType === 'download') {
+                    label.textContent = 'Enter download location:';
+                }
+            }
+                async function sendToCpp() {
+                    const input = document.getElementById('textBoxInput');
+                    const file_name = input.value;
+
+                    if (!file_name) {
+                    alert('Please enter a filename');
+                    return;
+                    }
+
+                    try {
+                        const response = await fetch('/download/' + encodeURIComponent(file_name));
+                        
+                        // For downloads, you typically want to trigger a file download
+                        // rather than parsing JSON
+                        if (response.ok) {
+                            // Option 1: Trigger browser download
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file_name;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                            
+                            console.log('Download successful');
+                        } else {
+                            console.error('Download failed:', response.status);
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+
+</script>
+    </body>
+</html>
