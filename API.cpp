@@ -1,3 +1,5 @@
+
+// All of the includes neccesary
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -17,17 +19,21 @@
 #include <thread>
 #include <atomic>
 
+// Structure for the HTTP requests recived, used in parsing
 struct HTTPRequest{
     std::string method;
     std::string path;
     std::string version;
 };
 
+// List of allowed file extensions for upload
 std::vector<std::string> allowed_extensions = {
         ".txt", ".pdf", ".jpg", ".jpeg", ".png", ".gif", 
         ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"
     };
 
+// Function that reads and opens a HTML file from the param path
+// E.G. "html/home.html"
 std::string readHtmlFile(const std::string& path) {
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -38,6 +44,8 @@ std::string readHtmlFile(const std::string& path) {
     return buffer.str();
 }
 
+// Function that parses the request line of a recieved HTTP request
+// Will return the HTTP request structure
 HTTPRequest parseRequestLine(const std::string& request) {
     HTTPRequest req;
     
@@ -57,15 +65,17 @@ HTTPRequest parseRequestLine(const std::string& request) {
     return req;
 }
 
+// Helper function to convert a string to lowercase 
 std::string to_lowercase(std::string target){
     std::string new_string;
     for (char c : target){
-        tolower(c);
+        c = tolower(c);
         new_string = new_string + c;
     }
     return new_string;
 }
 
+// Helper function that makes sure there is available storage space
 bool check_disk_space(const std::string& path, size_t required_space) {
     struct statvfs stat;
     
@@ -79,6 +89,7 @@ bool check_disk_space(const std::string& path, size_t required_space) {
     return available >= required_space;
 }
 
+// Helper function to get file extension from a filename
 std::string get_file_extension(const std::string& filename) {
     size_t dot_pos = filename.find_last_of('.');
     if (dot_pos == std::string::npos || dot_pos == filename.length() - 1) {
@@ -87,10 +98,9 @@ std::string get_file_extension(const std::string& filename) {
     return to_lowercase(filename.substr(dot_pos));
 }
 
-// ============================================
-// SECURITY: Validate filename
-// ============================================
+// Security check for validating filenames
 bool isValidFilename(const std::string& filename) {
+    // Checks for empty filenames
     if (filename.empty()) {
         std::cerr << "Security: Empty filename\n";
         return false;
@@ -142,6 +152,7 @@ bool isValidFilename(const std::string& filename) {
     
     std::string extension = get_file_extension(filename);
     
+    // Ensures there is an extension
     if (extension.empty()) {
         std::cerr << "Security: Must have extension\n";
         return false;
@@ -164,9 +175,8 @@ bool isValidFilename(const std::string& filename) {
     return true;
 }
 
-// ============================================
-// SECURITY: Extract and validate filename from path
-// ============================================
+// Helper function to extract and validate filename from path
+// All in one func that combines previous few
 std::string extractAndValidateFilename(const std::string& path) {
     // Extract filename
     size_t last_slash = path.find_last_of('/');
@@ -184,6 +194,7 @@ std::string extractAndValidateFilename(const std::string& path) {
     return filename;
 }
 
+// Overall function to call when the client requests a download
 void handleDownload(int client_socket, std::string path){
     std::string filename = extractAndValidateFilename(path);
     std::string full_path = "files/" + filename;
@@ -258,6 +269,8 @@ void handleDownload(int client_socket, std::string path){
     return;
 }
 
+// Handles when the client requests to list all files
+// TODO Implement this function
 void handleList(int client_socket){
     std::string response = 
         "HTTP/1.1 200 OK\r\n"
@@ -268,6 +281,7 @@ void handleList(int client_socket){
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
+// Overall function to call when client requests a upload
 void handleUpload(int client_socket, std::string request){
     std::string boundary;
     size_t boundary_pos = request.find("boundary=");
@@ -413,6 +427,8 @@ void handleUpload(int client_socket, std::string request){
     return;
 }
 
+// Overall function to call when the client requests a delete
+// TODO Implement this, make sure it confirms and uses DELETE method
 void handleDelete(int client_socket, std::string path){
     std::string response = 
         "HTTP/1.1 200 OK\r\n"
@@ -423,6 +439,8 @@ void handleDelete(int client_socket, std::string path){
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
+// Overall function to call when the client requests the home page
+// Returns the home.html file
 void handleHome(int client_socket){
     std::string html_content = readHtmlFile("html/home.html");
     
@@ -436,6 +454,8 @@ void handleHome(int client_socket){
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
+// Overall function to call when the client requests something, but gets an error
+// TODO Implement this into a nice html page
 void send404(int client_socket){
     std::string response = 
         "HTTP/1.1 404 Not Found\r\n"
@@ -445,6 +465,8 @@ void send404(int client_socket){
         "404";
     send(client_socket, response.c_str(), response.length(), 0);
 }
+
+// Overall function to call when the client requests a static file, such as an image or css
 void handleStaticFile(int client_socket, const std::string& path) {
     // Remove leading slash
     std::string file_path = path.substr(1); // removes the leading "/"
@@ -518,9 +540,7 @@ void handleStaticFile(int client_socket, const std::string& path) {
     std::cout << "Served static file: " << file_path << "\n";
 }
 
-// ============================================
-// SECURITY: Rate limiting (simple version)
-// ============================================
+// Rate limiter, prevents too many attacks per minute from same IP
 class RateLimiter {
 private:
     struct ClientInfo {
@@ -560,9 +580,7 @@ public:
 // Global rate limiter
 RateLimiter rateLimiter;
 
-// ============================================
-// SECURITY: Validate request structure
-// ============================================
+// Makes sure the request is valid
 bool isValidRequest(const HTTPRequest& req) {
     // Check if parsing succeeded
     if (req.method.empty() || req.path.empty() || req.version.empty()) {
@@ -599,9 +617,7 @@ bool isValidRequest(const HTTPRequest& req) {
     return true;
 }
 
-// ============================================
-// IMPROVED: Handle client with security
-// ============================================
+// Handles the client, redirects to the relevent function
 void handleClient(int client_socket, sockaddr_in client_address) {
     // SECURITY: Get client IP for logging and rate limiting
     char client_ip[INET_ADDRSTRLEN];
@@ -697,7 +713,8 @@ void handleClient(int client_socket, sockaddr_in client_address) {
 // Global flag for server control
 std::atomic<bool> server_running(true);
 
-// Extract server logic into a function
+// All the server logic in one func to call
+// Uses multi-threading (I think)
 void runServer() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     

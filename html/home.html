@@ -33,7 +33,7 @@
                     label.textContent = 'Enter download location:';
                 }
             }
-                async function sendToCpp() {
+                async function cppDownload() {
                     const input = document.getElementById('textBoxInput');
                     const file_name = input.value;
 
@@ -63,6 +63,36 @@
                         } else {
                             console.error('Download failed:', response.status);
                         }
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+                async function cppUpload() {
+                    const input = document.getElementById('textBoxInput');
+                    const file_name = input.value;
+
+                    if (!file_name) {
+                    alert('Please enter a filename');
+                    return;
+                    }
+
+                    try {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open("POST", "/upload", true);
+                        xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8")
+                        xhr.send(JSON.stringify({
+                            filename: file_name
+                        }));
+                        
+                        xhr.onload = function() {
+                            if (xhr.status === 200) {
+                                console.log('Upload successful');
+                            } else {
+                                console.error('Upload failed:', xhr.status);
+                            }
+                        };
+                            console.error('Upload failed:', xhr.status);
+                        
                     } catch (error) {
                         console.error('Error:', error);
                     }
