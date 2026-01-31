@@ -12,14 +12,19 @@ struct HTTPRequest{
     std::string version;
 };
 
-HTTPRequest parseRequestLine(const std::string* request) {
+HTTPRequest parseRequestLine(const std::string& request) {
     HTTPRequest req;
     
-    // Get just the first line
-    size_t first_line_end = request->find("\r\n");
-    std::string first_line = request->substr(0, first_line_end);
+    if (request.empty()) {
+        return req;
+    }
     
-    // Parse it using string stream
+    size_t first_line_end = request.find("\r\n");
+    if (first_line_end == std::string::npos) {
+        return req;
+    }
+    
+    std::string first_line = request.substr(0, first_line_end);
     std::istringstream stream(first_line);
     stream >> req.method >> req.path >> req.version;
     
@@ -27,27 +32,33 @@ HTTPRequest parseRequestLine(const std::string* request) {
 }
 
 void handleDownload(int client_socket, std::string path){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDownload";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleList(int client_socket){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nList";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleUpload(int client_socket, std::string request){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nUpload";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleDelete(int client_socket, std::string path){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nDelete";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleHome(int client_socket){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHome";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void send404(int client_socket){
-    ;
+    std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n404";
+    send(client_socket, response.c_str(), response.length(), 0);
 }
 
 void handleClient(int client_socket, sockaddr_in client_address){
@@ -55,17 +66,17 @@ void handleClient(int client_socket, sockaddr_in client_address){
     read(client_socket, buffer, 1024);
     std::string request(buffer);
     
-    HTTPRequest req = parseRequestLine(&request);
+    HTTPRequest req = parseRequestLine(request);
 
     std::cout << "Recieved " << req.method << " " << req.path << " from " << &client_address;
 
-    if (req.method == "GET" && req.path.find("/download/" == 0)){
+    if (req.method == "GET" && req.path.find("/download/") == 0){
         handleDownload(client_socket, req.path);
-    }else if (req.method == "POST" && req.path == "/upload"){
+    }else if (req.method == "POST" && req.path.find("/upload/") == 0){
         handleUpload(client_socket, request);
     }else if (req.method == "GET" && req.path == ("/list")){
         handleList(client_socket);
-    }else if (req.method == "DELETE" && req.path.find("/delete") == 0){
+    }else if (req.method == "GET" && req.path.find("/delete/") == 0){
         handleDelete(client_socket, req.path);
     }else if (req.method == "GET" && req.path == "/"){
         handleHome(client_socket);
@@ -86,9 +97,6 @@ int main() {
     listen(server_fd, 3);
     
     std::cout << "Server listening on port 8080\n";
-    std::cout << "Routes:\n";
-    std::cout << "  /1 -> returns HELLO\n";
-    std::cout << "  /2 -> returns WORLD\n";
     
     while (true) {
         sockaddr_in client_address;
