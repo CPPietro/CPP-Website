@@ -455,14 +455,16 @@ void handleHome(int client_socket){
 }
 
 // Overall function to call when the client requests something, but gets an error
-// TODO Implement this into a nice html page
 void send404(int client_socket){
+    std::string html_content = readHtmlFile("html/404.html");
+    
     std::string response = 
-        "HTTP/1.1 404 Not Found\r\n"
+        "HTTP/1.1 200 OK\r\n"
         "Access-Control-Allow-Origin: *\r\n"
-        "Content-Type: text/plain\r\n"
-        "\r\n"
-        "404";
+        "Content-Type: text/html\r\n"
+        "Content-Length: " + std::to_string(html_content.length()) + "\r\n"
+        "\r\n" + html_content;
+    
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
