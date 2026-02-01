@@ -288,7 +288,7 @@ void handleUpload(int client_socket, std::string request){
 
     if (boundary_pos == std::string::npos){
         std::string response = 
-        "HTTP/1.1 400 Bad Request\r\n"
+        "HTTP/1.1 400 Bad Request1\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Type: text/plain\r\n"
         "\r\n"
@@ -307,14 +307,14 @@ void handleUpload(int client_socket, std::string request){
 
     boundary = request.substr(boundary_start, boundary_end - boundary_start);
 
-    boundary = "--" + boundary;
+    boundary = boundary + "--";
 
     std::string filename;
     size_t filename_pos = request.find("filename=\"");
 
     if (filename_pos == std::string::npos){
         std::string response = 
-            "HTTP/1.1 400 Bad Request\r\n"
+            "HTTP/1.1 400 Bad Request2\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "Content-Type: text/plain\r\n"
             "\r\n"
@@ -328,7 +328,7 @@ void handleUpload(int client_socket, std::string request){
     
     if (filename_end == std::string::npos){
         std::string response = 
-        "HTTP/1.1 400 Bad Request\r\n"
+        "HTTP/1.1 400 Bad Request3\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Type: text/plain\r\n"
         "\r\n"
@@ -341,7 +341,7 @@ void handleUpload(int client_socket, std::string request){
 
     if (filename.empty()){
         std::string response = 
-        "HTTP/1.1 400 Bad Request\r\n"
+        "HTTP/1.1 400 Bad Request4\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Type: text/plain\r\n"
         "\r\n"
@@ -354,7 +354,7 @@ void handleUpload(int client_socket, std::string request){
 
     if(header_end ==std::string::npos){
         std::string response = 
-        "HTTP/1.1 400 Bad Request\r\n"
+        "HTTP/1.1 400 Bad Request5\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Type: text/plain\r\n"
         "\r\n"
@@ -374,7 +374,7 @@ void handleUpload(int client_socket, std::string request){
 
         if (file_data_end == std::string::npos){
             std::string response = 
-            "HTTP/1.1 400 Bad Request\r\n"
+            "HTTP/1.1 400 Bad Request6\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "Content-Type: text/plain\r\n"
             "\r\n"
@@ -662,7 +662,7 @@ void handleClient(int client_socket, sockaddr_in client_address) {
     
     if (!isValidRequest(req)) {
         std::cerr << "Invalid request from " << client_ip << "\n";
-        std::string response = "HTTP/1.1 400 Bad Request\r\n\r\nMalformed request";
+        std::string response = "HTTP/1.1 400 Bad Request7\r\n\r\nMalformed request";
         send(client_socket, response.c_str(), response.length(), 0);
         return;
     }
