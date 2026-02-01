@@ -189,3 +189,12 @@ button:hover .transition {
 button:active {
   transform: scale(0.97);
 }
+
+.list {
+    text-align: center;
+    margin-top: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 16px;
+    color: #1f2937;
+    text-decoration: none;
+}

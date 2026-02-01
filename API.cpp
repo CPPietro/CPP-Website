@@ -32,6 +32,24 @@ std::vector<std::string> allowed_extensions = {
         ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"
     };
 
+std::vector<std::string> readFilesForList() {
+    std::vector<std::string> filenames;
+    std::string folderPath = "files/";
+
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
+            if (entry.is_regular_file()) {  // Only include files, not directories
+                filenames.push_back(entry.path().filename().string());
+            }
+        }
+    }
+    catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error reading folder: " << e.what() << std::endl;
+    }
+    
+    return filenames;
+}
+
 // Function that reads and opens a HTML file from the param path
 // E.G. "html/home.html"
 std::string readHtmlFile(const std::string& path) {
@@ -270,14 +288,21 @@ void handleDownload(int client_socket, std::string path){
 }
 
 // Handles when the client requests to list all files
-// TODO Implement this function
+// I've seen dog food look better but it's fine
 void handleList(int client_socket){
+
+    std::string filenamesStr;
+    std::vector<std::string> filenames = readFilesForList();
+    for (const auto& name : filenames){
+        filenamesStr += name + "\n";
+    }
+
+
     std::string response = 
         "HTTP/1.1 200 OK\r\n"
         "Access-Control-Allow-Origin: *\r\n"
         "Content-Type: text/plain\r\n"
-        "\r\n"
-        "List";
+        "\r\n" + filenamesStr;
     send(client_socket, response.c_str(), response.length(), 0);
 }
 
