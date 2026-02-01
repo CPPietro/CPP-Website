@@ -618,6 +618,7 @@ bool isValidRequest(const HTTPRequest& req) {
 }
 
 // Handles the client, redirects to the relevent function
+// TODO Change to a switch 
 void handleClient(int client_socket, sockaddr_in client_address) {
     // SECURITY: Get client IP for logging and rate limiting
     char client_ip[INET_ADDRSTRLEN];
